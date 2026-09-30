@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "survey-aesthetics"
+version = "0.1.0"
+description = "Aesthetic rendering engine for the earthwatch-suite remote-sensing reel stack: LIC flow-field streaks, additive glow, 3D prism extrusion, rotated framing, editorial typography, custom legends, and mapped.earth-style presets — deterministic, UI-free, built for survey-viz to call"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "crieck2010" }]
+keywords = ["surveying", "remote-sensing", "dataviz", "map-animation", "aesthetics",
+            "line-integral-convolution", "reels", "cartography"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: GIS",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
+# The engine is numpy + matplotlib + scipy + pillow on purpose: the render
+# backend every other module in the stack already uses. No network calls, no
+# UI-framework imports, no hardcoded paths — survey-viz consumes this package
+# via duck-typed numpy arrays and the documented call pattern in docs/API.md.
+dependencies = [
+    "numpy>=1.22",
+    "matplotlib>=3.5",
+    "scipy>=1.8",
+    "pillow>=9.0",
+]
+
+[project.optional-dependencies]
+dev = ["build", "pytest"]
+
+[project.urls]
+Homepage = "https://github.com/crieck2010/survey-aesthetics"
+Repository = "https://github.com/crieck2010/survey-aesthetics"
+Issues = "https://github.com/crieck2010/survey-aesthetics/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
