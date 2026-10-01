@@ -184,6 +184,9 @@ for s, ok in zip(segs, valid):
     head_lats.append(s[-1][1][1])
 # Scalar at each trail head (temperature / speed overlay on the field):
 head_vals = field_t.sample_scalar(np.array(head_lons), np.array(head_lats))
+# Speed at each trail head, normalized REEL-WIDE to [0, 1] (never per-frame):
+#   head_speed01 = np.clip((head_speed - SPEED_MIN) / (SPEED_MAX - SPEED_MIN), 0, 1)
+# with SPEED_MIN/SPEED_MAX fixed for the whole reel, exactly like vmin/vmax.
 
 # --- mask: landmass for wind, ocean for currents --------------------------
 # Build once per reel from the field landmask on a coarse grid:
@@ -197,6 +200,7 @@ rgba = render_strands(
     cmap=preset.cmap,                     # "turbo" for dark_strands
     width_px=1080, height_px=1920,
     linewidth=1.4, head_alpha=0.8, tail_alpha=0.04,
+    brightness=head_speed01,              # (n,) bivariate channel: HUE = temp, BRIGHTNESS = speed
     mask=landmask_bool,                   # or None for unclipped strands
     mask_feather=3.0,                     # soft mask edge (px); 0 = hard
 )

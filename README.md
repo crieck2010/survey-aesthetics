@@ -88,6 +88,38 @@ verification script:
 python examples/demo_reel_frames.py --outdir /tmp/aes_demo
 ```
 
+## Bivariate strand encoding (HUE = temperature, BRIGHTNESS = speed)
+
+The mapped.earth Puget Sound reel encodes two variables in its strands:
+color carries the scalar (temperature), and *brightness* carries a second
+one (speed) — fast water glows, slow water nearly vanishes. `render_strands`
+does this with the optional `brightness` channel:
+
+```python
+from aesthetics.strands import render_strands
+
+rgba = render_strands(
+    trails, temperature, vmin=-4.0, vmax=30.0, cmap="turbo",
+    brightness=speed01,          # (n,) per-trail, in [0, 1]
+)
+```
+
+`brightness` also accepts a scalar, an `(n, max_M)` per-vertex array, or a
+sequence of `(M,)` arrays (mirroring the per-point `values` convention).
+Finite values clip to [0, 1]; NaN makes that vertex's adjacent segments
+fully transparent. `brightness=None` (default) is exactly the pre-0.3.0
+rendering — byte-identical.
+
+The gain scales each segment's luminance (multiplied into the RGB *after*
+colormapping) and, jointly, its effective alpha, so brightness 0 renders
+near-invisible even where the head→tail alpha ramp is high, on any
+background. The two multiply: a dim tail at low brightness fades doubly
+fast — the "slow water disappears" of the reference.
+
+Interop contract for survey-viz: pass reel-wide-normalized speed in [0, 1],
+sampled at trail heads (or per-vertex). Like `vmin`/`vmax`, normalize
+reel-wide, not per-frame, or the reel will flicker.
+
 ## API overview
 
 ```python
@@ -113,6 +145,7 @@ draw_watermark / draw_copyright / draw_data_source / frame_furniture
 
 # Strands, basemaps, layout
 render_strands(trails, values, vmin=..., vmax=..., mask=...) -> (H, W, 4) RGBA
+render_strands(..., brightness=speed01)  # bivariate glow: HUE = temp, BRIGHTNESS = speed
 draw_basemap(ax, segments, style)  # style: VOID_BLACK | NO_BASEMAP | SUBTLE_LAND
 place_furniture(specs, pad=0.012)  # text_spec / box_spec builders; see docs/LAYOUT.md
 
@@ -144,7 +177,7 @@ Full signatures and the survey-viz call pattern: `docs/API.md`.
 
 ```bash
 pip install -e ".[dev]"
-pytest            # 76 tests, all deterministic (no network)
+pytest            # 119 tests, all deterministic (no network)
 ```
 
 ## Changelog

@@ -5,6 +5,34 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0/).
 Tags are never mutated.
 
+## [0.3.0] - 2026-10-01
+
+Feature 1, step 1 of the mapped.earth richness program: bivariate strand
+encoding (HUE = temperature, BRIGHTNESS = speed — fast water *glows*).
+
+### Added
+- `render_strands(..., brightness=...)` — optional brightness channel on the
+  strand layer. Accepts a scalar, an `(n,)` per-trail array (broadcast
+  across the trail's vertices), an `(n, max_M)` per-vertex array (the
+  documented per-vertex convention), or a sequence of `(M,)` arrays
+  (mirroring the per-point `values` convention). The gain scales each
+  segment's LUMINANCE (multiplied into the RGB after colormapping) and,
+  jointly, its effective alpha — brightness 0 renders near-invisible even
+  where the head/tail alpha ramp is high, on any background color.
+  Finite values clip to [0, 1] (no raise); NaN renders that vertex's
+  adjacent segments (or the whole trail, for per-trail NaN) fully
+  transparent. `brightness=None` (default) is exactly the 0.2.0 rendering —
+  all-ones brightness is byte-identical to the legacy path. No RNG:
+  identical inputs give bit-identical RGBA. Interop contract: survey-viz
+  will pass reel-wide-normalized speed in [0, 1] sampled at trail heads;
+  normalize reel-wide, not per-frame, or the reel will flicker.
+
+### Docs
+- New README section "Bivariate strand encoding" with a short example and
+  the survey-viz interop contract; full `brightness` docstring (units,
+  shapes, NaN/clip semantics) plus a `Notes` section on how the gain
+  multiplies against the existing head/tail alpha ramp (~b^2 response).
+
 ## [0.2.0] - 2026-10-01
 
 Backwards compatible with 0.1.0: all four v0.1.0 demo frames render

@@ -33,6 +33,68 @@ ColormapLike = Union[str, matplotlib.colors.Colormap]
 Polyline = np.ndarray  # (M, 2) float array, axes-fraction coords in [0, 1]
 
 
+def _as_brightness(brightness, n: int,
+                   trail_lens: Sequence[int]) -> Optional[list]:
+    """Normalize the ``brightness`` argument to a list of (M,) float arrays.
+
+    Accepted forms (see ``render_strands`` for the contract):
+      - ``None`` -> ``None`` (brightness off: factor 1.0 everywhere).
+      - scalar -> uniform factor for every vertex of every trail.
+      - (n,) array -> per-trail factor, broadcast across the trail's vertices.
+      - (n, max_M) array -> per-vertex; row i is truncated to trail i's
+        length M. ``max_M`` is the longest trail in this call.
+      - sequence of (M,) arrays -> per-vertex, one array per trail
+        (mirrors the per-point ``values`` convention).
+
+    Anything else -> ``ValueError``. No clipping or NaN handling here;
+    that happens per segment in ``render_strands``.
+    """
+    if brightness is None:
+        return None
+    if np.isscalar(brightness):
+        b = float(brightness)
+        return [np.full(m, b) for m in trail_lens]
+    try:
+        arr = np.asarray(brightness, dtype=float)
+    except (ValueError, TypeError):
+        arr = None
+    if arr is not None and arr.dtype != object:
+        if arr.ndim == 0:
+            b = float(arr)
+            return [np.full(m, b) for m in trail_lens]
+        if arr.ndim == 1:
+            if arr.shape != (n,):
+                raise ValueError(
+                    f"per-trail brightness must have shape (n,)=({n},), "
+                    f"got {arr.shape}")
+            return [np.full(m, arr[i]) for i, m in enumerate(trail_lens)]
+        if arr.ndim == 2:
+            max_m = max(trail_lens, default=0)
+            if arr.shape != (n, max_m):
+                raise ValueError(
+                    f"per-vertex brightness must have shape "
+                    f"(n, max_M)=({n}, {max_m}), got {arr.shape}")
+            return [arr[i, :m] for i, m in enumerate(trail_lens)]
+        raise ValueError(
+            f"brightness must be scalar, (n,), (n, max_M), or a sequence "
+            f"of (M,) arrays; got an array with ndim={arr.ndim}")
+    # Ragged sequence of per-vertex arrays (mirrors per-point values).
+    seq = list(brightness)
+    if len(seq) != n or not all(hasattr(v, "__len__") for v in seq):
+        raise ValueError(
+            f"per-vertex brightness must be a sequence of {n} arrays, "
+            f"got {type(brightness).__name__} of length {len(seq)}")
+    out = []
+    for i, v in enumerate(seq):
+        vv = np.asarray(v, dtype=float)
+        if vv.ndim != 1 or vv.shape[0] != trail_lens[i]:
+            raise ValueError(
+                f"brightness[{i}] has shape {vv.shape} but trail {i} has "
+                f"{trail_lens[i]} vertices")
+        out.append(vv)
+    return out
+
+
 def _as_cmap(cmap: ColormapLike) -> matplotlib.colors.Colormap:
     if isinstance(cmap, str):
         try:
@@ -97,6 +159,7 @@ def render_strands(
     linewidth: float = 1.4,
     head_alpha: float = 0.8,
     tail_alpha: float = 0.04,
+    brightness=None,
     mask: Optional[np.ndarray] = None,
     mask_feather: float = 0.0,
     background: Tuple[float, float, float] = (0.0, 0.0, 0.0),
@@ -125,6 +188,36 @@ def render_strands(
     head_alpha, tail_alpha : float
         Alpha ramp along each trail: bright head fading to near-
         transparent tail (the comet look of the reference).
+    brightness : None, scalar, (n,) array, (n, max_M) array, or \
+            sequence of (M,) arrays
+        Bivariate-encoding brightness channel (the mapped.earth look:
+        HUE = temperature, BRIGHTNESS = speed — fast water *glows*).
+        Unitless gain in [0, 1] that scales each segment's LUMINANCE
+        (multiplied into the RGB *after* colormapping) and, jointly, its
+        effective alpha — brightness 0 renders near-invisible even where
+        the head/tail alpha ramp is high, on any background color.
+        ``None`` (default) disables the channel: factor 1.0 everywhere,
+        exactly the pre-0.3.0 rendering.
+
+        Shape contract (``n`` = number of trails, ``M`` = vertices of one
+        trail, ``max_M`` = longest trail in the call):
+          - ``None`` -> no brightness scaling.
+          - scalar -> uniform gain for every vertex of every trail.
+          - ``(n,)`` array -> per-trail gain, broadcast across the trail's
+            vertices.
+          - ``(n, max_M)`` array -> per-vertex; row ``i`` is truncated to
+            trail ``i``'s length. This is the documented per-vertex
+            convention.
+          - sequence of ``(M,)`` arrays -> per-vertex, one array per
+            trail (mirrors the per-point ``values`` convention).
+
+        Value semantics: finite values are clipped to [0, 1] (values
+        outside the range do not raise). NaN -> that vertex's adjacent
+        segments render fully transparent (per-trail NaN drops the whole
+        trail). Interop contract: survey-viz passes reel-wide-normalized
+        speed in [0, 1], sampled at trail heads (or per-vertex); like
+        ``vmin``/``vmax``, normalize reel-wide, not per-frame, or the
+        reel will flicker.
     mask : (my, mx) bool array or None
         Optional clip mask, axes-fraction aligned (row 0 = top).
         ``True`` keeps strands; ``False`` erases them. Use a landmask
@@ -140,6 +233,18 @@ def render_strands(
     Returns
     -------
     (H, W, 4) float64 RGBA array in [0, 1], opaque.
+
+    Notes
+    -----
+    The brightness gain multiplies *both* the colormapped RGB and the
+    head/tail alpha ramp, so a segment's emitted light scales
+    approximately with the *square* of the gain (a gain of 0.5 leaves
+    ~25% of the pixel contribution). The two effects multiply: a dim
+    tail (low ramp alpha) at low brightness fades out doubly fast,
+    which is exactly the "slow water disappears, fast water glows" of
+    the mapped.earth reference. Brightness is evaluated per segment at
+    vertex midpoints, so per-vertex gradients step discretely along
+    the trail — use enough vertices per trail for a smooth glow ramp.
 
     Cost
     ----
@@ -159,6 +264,8 @@ def render_strands(
 
     trails = list(trails)
     n = len(trails)
+    trail_lens = [np.asarray(p, dtype=float).shape[0] for p in trails]
+    bvals = _as_brightness(brightness, n, trail_lens)
     per_point = (
         n > 0 and not np.isscalar(values)
         and len(values) == n
@@ -194,7 +301,22 @@ def render_strands(
             alphas = tail_alpha + (head_alpha - tail_alpha) * ramp
             cols = cmap_obj(tnorm)  # (m-1, 4)
             cols[:, 3] = np.clip(alphas, 0.0, 1.0)
-            keep = finite_t
+            if bvals is None:
+                keep = finite_t
+            else:
+                # Brightness channel: gain on luminance AND effective
+                # alpha, evaluated at segment midpoints like the color.
+                # NaN at either endpoint -> segment transparent.
+                bv = bvals[i][a0:a0 + m]
+                finite_b = np.isfinite(bv[:-1]) & np.isfinite(bv[1:])
+                bseg = np.where(
+                    finite_b, np.clip((bv[:-1] + bv[1:]) / 2.0, 0.0, 1.0),
+                    0.0)
+                cols[:, :3] *= bseg[:, None]
+                cols[:, 3] *= bseg
+                # bseg == 0 contributes nothing on any background, so the
+                # segments are dropped rather than drawn transparent.
+                keep = finite_t & (bseg > 0.0)
             if keep.all():
                 segments.append(np.stack([sub[:-1], sub[1:]], axis=1))
                 seg_rgba.append(cols)
