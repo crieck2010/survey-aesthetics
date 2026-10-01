@@ -1,12 +1,15 @@
 """Preset bundles: the mapped.earth look as one choice.
 
-Three curated presets, each a frozen dataclass capturing background,
-colormap, typography colours, legend placement, and furniture layout:
+Four curated presets, each a frozen dataclass capturing background,
+colormap, typography colours, legend placement, basemap style, and
+furniture layout:
 
 - ``dark_flow`` — LIC current streaks on black (hue = scalar,
   brightness = speed).
 - ``dark_glow`` — additive event glow with bloom on black.
 - ``paper_prism`` — 3D prism extrusion on warm paper.
+- ``dark_strands`` — advected particle strands on black, color = scalar
+  (the warming.watch wind-strand look); no visible basemap.
 
 :func:`preset_figure` builds the canvas for a preset; the caller then
 draws the data layer and legends with the other modules. Reel-studio will
@@ -22,6 +25,7 @@ import matplotlib
 matplotlib.use("Agg")
 
 from aesthetics.backgrounds import BLACK, PAPER, new_canvas
+from aesthetics.basemap import NO_BASEMAP, VOID_BLACK, BasemapStyle
 
 _DARK = "dark"
 _PAPER = "paper"
@@ -42,6 +46,7 @@ class Preset:
     readout_size: float = 20
     encoding: str = ""  # honesty line, e.g. "BRIGHTNESS = SPEED"
     legend_layout: Dict[str, Tuple[float, ...]] = field(default_factory=dict)
+    basemap: BasemapStyle = VOID_BLACK
 
 
 DARK_FLOW = Preset(
@@ -96,8 +101,29 @@ PAPER_PRISM = Preset(
 )
 """3D prism extrusion on warm paper: height = value."""
 
+DARK_STRANDS = Preset(
+    name="dark_strands",
+    background="black",
+    bg_rgb=BLACK,
+    cmap="turbo",
+    text_color="white",
+    muted_color="#9aa0aa",
+    encoding="COLOR = VALUE",
+    legend_layout={
+        "title": (0.06, 0.94),
+        "subtitle": (0.06, 0.875),
+        "gradient_bar": (0.06, 0.22, 0.30, 0.012),
+        "timeline": (0.06, 0.14, 0.60, 0.010),
+    },
+    basemap=NO_BASEMAP,
+)
+"""Advected particle strands on black, color = scalar (warming.watch look).
+
+No visible basemap: the geography emerges from the strand mask, so callers
+pass a landmask/oceanmask to ``render_strands`` instead of coastlines."""
+
 _PRESETS: Dict[str, Preset] = {
-    p.name: p for p in (DARK_FLOW, DARK_GLOW, PAPER_PRISM)
+    p.name: p for p in (DARK_FLOW, DARK_GLOW, PAPER_PRISM, DARK_STRANDS)
 }
 
 

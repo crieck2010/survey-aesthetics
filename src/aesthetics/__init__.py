@@ -1,9 +1,10 @@
 """survey-aesthetics: aesthetic rendering engine for remote-sensing reels.
 
 Deterministic, UI-free render layers that give survey-viz output the
-mapped.earth look: LIC flow-field streaks, additive glow with bloom, 3D
-prism extrusion, rotated auto-fit framing, editorial typography, custom
-legends, curated backgrounds, and watermark furniture.
+mapped.earth / warming.watch look: LIC flow-field streaks, advected
+particle strands, additive glow with bloom, 3D prism extrusion, rotated
+auto-fit framing, editorial typography, collision-aware furniture
+layout, custom legends, styled basemaps, and watermark furniture.
 
 Every public function is deterministic: same inputs + same seed ->
 byte-identical output, so survey-cache fingerprints stay stable across
@@ -17,6 +18,15 @@ import matplotlib
 matplotlib.use("Agg")  # headless render backend; no UI imports anywhere
 
 from aesthetics.backgrounds import BLACK, PAPER, draw_coastlines, fig_to_rgba, new_canvas
+from aesthetics.basemap import (
+    NO_BASEMAP,
+    SUBTLE_LAND,
+    VOID_BLACK,
+    BasemapStyle,
+    draw_basemap,
+    get_basemap,
+    list_basemaps,
+)
 from aesthetics.framing import (
     fit_extent_to_canvas,
     optimal_rotation,
@@ -26,6 +36,15 @@ from aesthetics.framing import (
     tight_bbox,
 )
 from aesthetics.glow import accumulate_glow, glow_from_grid, light_beam
+from aesthetics.layout import (
+    FurnitureSpec,
+    PlacedItem,
+    box_spec,
+    fit_font_size,
+    place_furniture,
+    text_extent_frac,
+    text_spec,
+)
 from aesthetics.legends import (
     counter,
     date_dial,
@@ -38,6 +57,7 @@ from aesthetics.lic import lic_texture
 from aesthetics.presets import (
     DARK_FLOW,
     DARK_GLOW,
+    DARK_STRANDS,
     PAPER_PRISM,
     Preset,
     get_preset,
@@ -45,6 +65,7 @@ from aesthetics.presets import (
     preset_figure,
 )
 from aesthetics.prism import prism_frame
+from aesthetics.strands import render_strands
 from aesthetics.typography import (
     draw_readout,
     draw_subtitle,
@@ -58,7 +79,7 @@ from aesthetics.watermark import (
     frame_furniture,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "__version__",
@@ -68,8 +89,18 @@ __all__ = [
     "new_canvas",
     "draw_coastlines",
     "fig_to_rgba",
+    # basemap
+    "BasemapStyle",
+    "VOID_BLACK",
+    "NO_BASEMAP",
+    "SUBTLE_LAND",
+    "list_basemaps",
+    "get_basemap",
+    "draw_basemap",
     # lic
     "lic_texture",
+    # strands
+    "render_strands",
     # glow
     "accumulate_glow",
     "glow_from_grid",
@@ -88,6 +119,14 @@ __all__ = [
     "draw_subtitle",
     "draw_readout",
     "place_labels",
+    # layout
+    "FurnitureSpec",
+    "PlacedItem",
+    "place_furniture",
+    "text_spec",
+    "box_spec",
+    "text_extent_frac",
+    "fit_font_size",
     # legends
     "gradient_bar",
     "vertical_scale_bar",
@@ -104,6 +143,7 @@ __all__ = [
     "Preset",
     "DARK_FLOW",
     "DARK_GLOW",
+    "DARK_STRANDS",
     "PAPER_PRISM",
     "get_preset",
     "list_presets",

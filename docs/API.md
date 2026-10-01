@@ -130,10 +130,141 @@ draw_north_arrow(ax2, 0.06, 0.80, angle_deg=angle)  # honest rotated arrow
    once (from the full reel domain or the survey-timescales suggestion),
    then reused for every frame.
 2. **Fixed seed per reel** for `lic_texture` (or vary it deliberately —
-   but a changing seed shimmers the texture).
+   but a changing seed shimmers the texture). `render_strands` uses no
+   RNG at all — but keep the *particle seeding* in survey-flow fixed per
+   reel for the same reason.
 3. **`aspect="auto"`** on every `imshow` that uses
    `transform=ax.transAxes`.
 4. **Furniture after rotation.** Titles, legends, and `frame_furniture`
    are drawn on the final frame, never on the pre-rotation canvas.
 5. **Brand is the user's.** Pass the page handle to `frame_furniture`;
    there is no default brand.
+6. **Strands are drawn once per data timestep**, not per animation
+   frame. The strand field evolves slowly (hourly model output), so
+   render one strand texture per timestep and let survey-animate's
+   crossfade carry the motion between them.
+
+## Dark strands frame (wind / currents — the warming.watch look)
+
+Thousands of fine advected trails, colored by a scalar, clipped to a
+mask so the geography emerges from the data with no visible basemap.
+
+```python
+from flow.advect import AdvectionConfig, ParticleSet  # survey-flow (peer)
+from aesthetics import (
+    preset_figure, render_strands, draw_title, draw_subtitle,
+    gradient_bar, timeline, frame_furniture, fig_to_rgba,
+)
+from aesthetics.backgrounds import close
+import numpy as np
+
+fig, ax, preset = preset_figure("dark_strands", 1080, 1920)
+
+# --- advect (survey-flow owns this; the engine only renders) -------------
+cfg = AdvectionConfig(dt_seconds=3600, trail_length=12, seed=7)  # fixed/reel
+field_t = tvf.at(t)                       # TimeVaryingField at this timestep
+ps = ParticleSet(N_PARTICLES, field_t, cfg, seed=7)
+for _ in range(SPINUP_STEPS):
+    ps.step(field_t)
+segs, valid = ps.trail_segments()         # (n, L-1, 2, 2) lon/lat
+
+# --- lon/lat segments -> axes-fraction polylines (survey-viz bridge) ------
+lon0, lon1, lat0, lat1 = spec.bbox
+def _frac(lon, lat):
+    return ((lon - lon0) / (lon1 - lon0), 1.0 - (lat - lat0) / (lat1 - lat0))
+
+trails, head_lons, head_lats = [], [], []
+for s, ok in zip(segs, valid):
+    # One particle's (L-1) segments -> one polyline: first segment's
+    # start, then each segment's end. Dead links (ok=False) split the
+    # polyline; the engine also splits on NaN, so pass them through.
+    pts = [_frac(*s[0][0])] + [_frac(*seg[1]) for seg in s]
+    trails.append(np.array(pts))
+    head_lons.append(s[-1][1][0])
+    head_lats.append(s[-1][1][1])
+# Scalar at each trail head (temperature / speed overlay on the field):
+head_vals = field_t.sample_scalar(np.array(head_lons), np.array(head_lats))
+
+# --- mask: landmass for wind, ocean for currents --------------------------
+# Build once per reel from the field landmask on a coarse grid:
+#   mask = ~field.is_land(lon_grid, lat_grid)  # (my, mx) bool, row 0 = top
+# True keeps strands; the country's shape emerges with no basemap drawn.
+
+# --- render ---------------------------------------------------------------
+rgba = render_strands(
+    trails, head_vals,
+    vmin=TMIN, vmax=TMAX,                 # reel-wide fixed, never per-frame
+    cmap=preset.cmap,                     # "turbo" for dark_strands
+    width_px=1080, height_px=1920,
+    linewidth=1.4, head_alpha=0.8, tail_alpha=0.04,
+    mask=landmask_bool,                   # or None for unclipped strands
+    mask_feather=3.0,                     # soft mask edge (px); 0 = hard
+)
+ax.imshow(rgba, extent=[0, 1, 0, 1], origin="upper",
+          transform=ax.transAxes, aspect="auto", zorder=2)
+
+# --- map dressing: none by default ----------------------------------------
+# preset.basemap is NO_BASEMAP (coastlines off). To add hairlines:
+#   from aesthetics import draw_basemap, VOID_BLACK
+#   draw_basemap(ax, coastline_segments, VOID_BLACK)
+
+# --- editorial ------------------------------------------------------------
+lay = preset.legend_layout
+draw_title(ax, title, *lay["title"], size=preset.title_size, color="white")
+draw_subtitle(ax, window_label, *lay["subtitle"], size=preset.subtitle_size)
+gradient_bar(ax, lay["gradient_bar"], preset.cmap, TMIN, TMAX,
+             label="air temperature", unit="°C")
+timeline(ax, lay["timeline"], t_start, t_end, t_now)
+frame_furniture(ax, brand=user_handle, holder=user_name, year=2026,
+                data_source="ERA5 reanalysis · 10 m wind · 2 m temperature",
+                encoding="COLOR = AIR TEMPERATURE")
+
+rgba = fig_to_rgba(fig)
+close(fig)
+```
+
+**Cost honesty.** ~1.3 s per strand frame (4000 trails x 12 points at
+1080x1920) — essentially the same as one LIC frame at 540x540,
+`kernel=12`. It is the most expensive preset per frame; keep trail
+counts modest on the daily automation.
+
+## Basemap styles
+
+```python
+from aesthetics import draw_basemap, get_basemap, VOID_BLACK, NO_BASEMAP, SUBTLE_LAND
+
+# Styled replacement for draw_coastlines; presets carry one as preset.basemap.
+draw_basemap(ax, coastline_segments, VOID_BLACK)          # v0.1.0 look
+draw_basemap(ax, coastline_segments, NO_BASEMAP)          # nothing drawn
+draw_basemap(ax, coastline_segments, SUBTLE_LAND, mask=landmask_bool)
+```
+
+`BasemapStyle` fields: `coastlines` (bool), `coastline_color`,
+`coastline_width`, `coastline_alpha`, `land_fill` (+`land_fill_alpha`,
+needs `mask`), `ocean_fill`, `background`. Custom styles are just
+`BasemapStyle(name=..., ...)` — frozen dataclass, no registry needed.
+
+## Furniture layout (collision-aware placement)
+
+```python
+from aesthetics import place_furniture, text_spec, box_spec, fit_font_size
+
+specs = [
+    text_spec(ax, "title", title, 0.06, 0.94, family="DejaVu Serif",
+              size=preset.title_size, weight="bold", priority=10),
+    text_spec(ax, "subtitle", window_label, 0.06, 0.875, priority=9),
+    box_spec("date_dial", (0.78, 0.70, 0.16, 0.09), priority=5,
+             alternatives=[(0.78, 0.55, 0.16, 0.09)], optional=True),
+    # ... gradient_bar, timeline, counter, encoding ...
+]
+placed = {p.kind: p for p in place_furniture(specs, pad=0.012)}
+title_size = preset.title_size * placed["title"].scale
+draw_title(ax, title, *placed["title"].rect[:2], size=title_size)
+# Pass placed furniture rects so city labels avoid the dial too:
+place_labels(ax, label_dicts,
+             obstacles=[p.rect for p in placed.values() if p.placed])
+```
+
+`text_spec` measures the real rasterized extent; over-long titles shrink
+through `(0.92, 0.85, 0.78, 0.70)` before colliding. See `docs/LAYOUT.md`
+for the algorithm and its limits.

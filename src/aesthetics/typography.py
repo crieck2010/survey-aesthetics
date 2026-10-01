@@ -135,15 +135,20 @@ def place_labels(
     dot_size: float = 26,
     alpha: float = 0.85,
     zorder: int = 9,
+    obstacles: Sequence[Tuple[float, float, float, float]] = (),
 ) -> List[Dict]:
     """Place minimal dot-marker place labels with greedy collision avoidance.
 
     ``labels``: sequence of ``{"x": float, "y": float, "text": str}`` in
     **data** coordinates, optionally ``"priority": int`` (higher wins ties).
     Each label is tried at 8 compass offsets around its point; the first
-    offset whose approximated text box overlaps neither a placed label nor
-    another dot wins. Labels that fit nowhere are dropped (returned with
-    ``"placed": False``).
+    offset whose approximated text box overlaps neither a placed label,
+    another dot, nor any ``obstacles`` rect wins. Labels that fit nowhere
+    are dropped (returned with ``"placed": False``).
+
+    ``obstacles``: sequence of ``(x, y, w, h)`` rects in axes fraction —
+    e.g. furniture rects from :func:`aesthetics.layout.place_furniture`
+    — that labels must avoid (the date dial used to sit on "Lagos").
 
     Returns the label dicts with ``"placed"``, ``"lx"``, ``"ly"``
     (axes-fraction label position) and ``"anchor"`` added.
@@ -164,6 +169,13 @@ def place_labels(
         return any(
             r[0] < q[2] and r[2] > q[0] and r[1] < q[3] and r[3] > q[1]
             for q in rects
+        )
+
+    def _hits_obstacle(r):
+        # obstacles are (x, y, w, h); convert to (x0, y0, x1, y1).
+        return any(
+            r[0] < ox + ow and r[2] > ox and r[1] < oy + oh and r[3] > oy
+            for ox, oy, ow, oh in obstacles
         )
 
     ordered = sorted(
@@ -196,6 +208,8 @@ def place_labels(
                     and 0.0 <= rect[1] and rect[3] <= 1.0):
                 continue
             if _overlaps(rect, placed_rects) or _overlaps(rect, dot_rects):
+                continue
+            if _hits_obstacle(rect):
                 continue
             chosen = (px[0] + dx, px[1] + dy, ha, va, rect)
             break

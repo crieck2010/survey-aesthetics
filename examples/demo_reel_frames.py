@@ -90,6 +90,61 @@ def demo_dark_flow(outdir: Path) -> None:
     close(fig)
 
 
+def demo_dark_strands(outdir: Path) -> None:
+    """Advected particle strands on black — the warming.watch look.
+
+    Trails are integrated analytically through a synthetic gyre here
+    (the demo stays dependency-free); production callers advect with
+    survey-flow's ParticleSet and pass the polylines in.
+    """
+    from aesthetics import render_strands
+
+    rng = np.random.default_rng(5)
+    n, m = 2600, 14
+    trails, vals = [], []
+    for _ in range(n):
+        x, y = rng.random(), rng.random()
+        pts = [(x, y)]
+        for _ in range(m - 1):
+            # Synthetic gyre + eastward drift, Euler steps.
+            u = -0.9 * (y - 0.5) + 0.25
+            v = 0.9 * (x - 0.5)
+            x += 0.012 * u + 0.004 * rng.standard_normal()
+            y += 0.012 * v + 0.004 * rng.standard_normal()
+            pts.append((x, y))
+        trails.append(np.array(pts))
+        # Scalar: warm core (center) -> cold edges, like air temperature.
+        vals.append(30.0 - 34.0 * min(1.0, np.hypot(x - 0.5, y - 0.5)))
+    vals = np.array(vals)
+    # Landmask: keep strands inside a rounded "country" blob.
+    my, mx = 48, 27
+    yy, xx = np.mgrid[0:my, 0:mx].astype(float)
+    mask = ((xx / mx - 0.5) ** 2 + (yy / my - 0.5) ** 2) < 0.16
+
+    fig, ax, preset = preset_figure("dark_strands", W, H)
+    rgba = render_strands(trails, vals, vmin=-4.0, vmax=30.0,
+                          cmap=preset.cmap, width_px=W, height_px=H,
+                          mask=mask, mask_feather=3.0)
+    ax.imshow(rgba, extent=[0, 1, 0, 1], origin="upper",
+              transform=ax.transAxes, aspect="auto", zorder=2)
+    lay = preset.legend_layout
+    draw_title(ax, "Demo Winds", *lay["title"], size=preset.title_size,
+               color=preset.text_color)
+    draw_subtitle(ax, "Thirty Days of Strands", *lay["subtitle"],
+                  size=preset.subtitle_size, color=preset.text_color)
+    gradient_bar(ax, lay["gradient_bar"], preset.cmap, -4.0, 30.0,
+                 label="air temperature", unit="°C",
+                 color=preset.text_color)
+    timeline(ax, lay["timeline"], datetime(2026, 7, 5), datetime(2026, 8, 3),
+             datetime(2026, 7, 25, 23), color=preset.text_color)
+    frame_furniture(ax, brand="demo-page", holder="Demo Holder", year=2026,
+                    data_source="SYNTHETIC DEMO FIELD\nNOT REAL DATA",
+                    encoding="COLOR = AIR TEMPERATURE",
+                    color=preset.text_color)
+    save(fig_to_rgba(fig), outdir / "demo_dark_strands.png")
+    close(fig)
+
+
 def demo_dark_glow(outdir: Path) -> None:
     """Event glow with bloom + lighthouse beams on black.
 
@@ -215,6 +270,7 @@ def main() -> None:
     outdir.mkdir(parents=True, exist_ok=True)
     demo_dark_flow(outdir)
     demo_dark_glow(outdir)
+    demo_dark_strands(outdir)
     demo_paper_prism(outdir)
     demo_rotated_frame(outdir)
     print("done.")

@@ -29,7 +29,8 @@ from aesthetics.presets import Preset
 
 
 def test_list_presets():
-    assert list_presets() == ["dark_flow", "dark_glow", "paper_prism"]
+    assert list_presets() == ["dark_flow", "dark_glow", "dark_strands",
+                              "paper_prism"]
 
 
 def test_get_preset_known_and_unknown():

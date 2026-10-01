@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "survey-aesthetics"
-version = "0.1.0"
+version = "0.2.0"
 description = "Aesthetic rendering engine for the earthwatch-suite remote-sensing reel stack: LIC flow-field streaks, additive glow, 3D prism extrusion, rotated framing, editorial typography, custom legends, and mapped.earth-style presets — deterministic, UI-free, built for survey-viz to call"
 readme = "README.md"
 requires-python = ">=3.9"

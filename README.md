@@ -14,8 +14,11 @@ The aesthetic rendering engine for the earthwatch-suite remote-sensing reel stac
 | Rotated auto-fit framing | `aesthetics.framing` | rotate the map to maximize zoom for elongated regions (the Lake Ontario move), with honest rotated north arrows |
 | Editorial typography | `aesthetics.typography` | serif display titles, letterspaced subtitles, monospace data readouts, collision-avoided dot-marker labels |
 | Custom legends | `aesthetics.legends` | gradient bars, vertical scale bars, circular date dials, timeline scrubbers, running counters, encoding honesty-lines — never a default colorbar |
+| Particle strands | `aesthetics.strands` | advected particle trails (warming.watch look); per-trail/point coloring, head→tail fade, mask clipping |
+| Basemap styles | `aesthetics.basemap` | styled coastline/land/ocean/background treatments carried by each preset |
+| Furniture layout | `aesthetics.layout` | collision-aware placement, title shrink-to-fit, real glyph measurement |
 | Backgrounds | `aesthetics.backgrounds` | pure-black void and warm paper; chrome-free exact-pixel canvases; hairline coastlines |
-| Presets | `aesthetics.presets` | `dark_flow`, `dark_glow`, `paper_prism` one-choice bundles |
+| Presets | `aesthetics.presets` | `dark_flow`, `dark_glow`, `dark_strands`, `paper_prism` one-choice bundles |
 | Watermark furniture | `aesthetics.watermark` | brand mark + © line + data-source footer in consistent placement |
 
 Every public function is **deterministic**: same inputs + same seed → byte-identical output, so [survey-cache](https://github.com/crieck2010/survey-cache) fingerprints stay stable across every frame of a reel.
@@ -104,12 +107,17 @@ tight_bbox(lons, lats, mask, *, pad_frac=0.04) -> (lon0, lon1, lat0, lat1)
 fit_extent_to_canvas(bbox, canvas_wh) -> bbox
 
 # Typography & legends & furniture (all draw onto a chrome-free axes)
-draw_title / draw_subtitle / draw_readout / draw_north_arrow / place_labels
+draw_title / draw_subtitle / draw_readout / draw_north_arrow / place_labels  # place_labels(..., obstacles=[...])
 gradient_bar / vertical_scale_bar / date_dial / timeline / counter / encoding_statement
 draw_watermark / draw_copyright / draw_data_source / frame_furniture
 
+# Strands, basemaps, layout
+render_strands(trails, values, vmin=..., vmax=..., mask=...) -> (H, W, 4) RGBA
+draw_basemap(ax, segments, style)  # style: VOID_BLACK | NO_BASEMAP | SUBTLE_LAND
+place_furniture(specs, pad=0.012)  # text_spec / box_spec builders; see docs/LAYOUT.md
+
 # Presets
-list_presets() -> ["dark_flow", "dark_glow", "paper_prism"]
+list_presets() -> ["dark_flow", "dark_glow", "dark_strands", "paper_prism"]
 get_preset(name) -> Preset
 preset_figure(name, width_px=1080, height_px=1920) -> (fig, ax, preset)
 ```

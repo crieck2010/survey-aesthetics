@@ -5,6 +5,54 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0/).
 Tags are never mutated.
 
+## [0.2.0] - 2026-10-01
+
+Backwards compatible with 0.1.0: all four v0.1.0 demo frames render
+byte-identical under 0.2.0 (verified against the `v0.1.0` tag).
+
+### Added
+- `aesthetics.strands.render_strands` — advected particle trails in the
+  warming.watch manner: thousands of hair-like strands, per-trail or
+  per-point scalar coloring, bright head fading to transparent tail,
+  optional 2D boolean clip mask (axes-fraction aligned, row 0 = top) so
+  geography emerges from the data with no basemap. No RNG — identical
+  inputs give bit-identical RGBA. ~1.3 s per frame (4000 trails x 12
+  points at 1080x1920), essentially the same cost as one LIC frame.
+- `aesthetics.basemap.BasemapStyle` — frozen dataclass replacing the
+  hardcoded `#3a3f4a` hairlines: coastline color/width/alpha + toggle,
+  land fill (via optional landmask), ocean fill, background. House
+  styles: `VOID_BLACK` (the v0.1.0 look), `NO_BASEMAP` (nothing drawn),
+  `SUBTLE_LAND` (faint landmass under hairlines). `draw_basemap`,
+  `list_basemaps`, `get_basemap`.
+- `aesthetics.layout` — collision-aware furniture placement:
+  `place_furniture` (priority-ordered rect packing with fallback
+  alternatives, optional-drop, and required-fallback), `text_spec` /
+  `box_spec` builders, `text_extent_frac` (real Agg measurement) and
+  `fit_font_size` (title shrink-to-fit). Documented in `docs/LAYOUT.md`.
+- `dark_strands` preset — the warming.watch bundle (turbo strands on
+  black, `NO_BASEMAP`, colorbar + timeline legend layout). Presets now
+  carry a `basemap` style (`dark_flow`/`dark_glow` keep `VOID_BLACK`,
+  so their pixels are unchanged).
+- `place_labels(..., obstacles=...)` — city labels avoid furniture rects
+  (e.g. the date dial no longer sits on "Lagos"). Backwards compatible
+  (default empty).
+
+### Docs
+- `docs/API.md`: the survey-viz consumer contract for the strand frame
+  (survey-flow `ParticleSet`/`trail_segments` -> axes-fraction polylines
+  -> `render_strands`, with the landmask pattern), basemap styles, and
+  the furniture layout call pattern.
+- `docs/LAYOUT.md`: the placement algorithm, suggested priorities, and
+  honest limits.
+
+### Honest limits
+- Strand rendering is the most expensive preset per frame (~1.3 s at
+  4000 trails); keep trail counts modest on the daily automation.
+- The layout placer tests bounding rects, not glyphs; shrink reflows
+  nothing and only supports left/top-anchored text.
+- Text measurement is matplotlib-version-pinned (same caveat as the
+  v0.1.0 byte-determinism note).
+
 ## [0.1.0] - 2026-09-30
 
 Initial release: the aesthetic rendering engine for the earthwatch-suite
