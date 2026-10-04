@@ -1,8 +1,10 @@
 # API — the survey-viz consumer contract
 
 This document is the exact call pattern `survey-viz` should use. It is
-written against `survey-aesthetics` 0.1.0; breaking changes will bump the
-minor version and be noted in `CHANGELOG.md`.
+kept current against `survey-aesthetics` 0.4.0 (the density-surface
+section arrived in 0.4.0; earlier sections date from 0.1.0–0.3.0);
+breaking changes will bump the minor version and be noted in
+`CHANGELOG.md`.
 
 ## Dark flow frame (currents / wind)
 
@@ -231,6 +233,62 @@ close(fig)
 1080x1920) — essentially the same as one LIC frame at 540x540,
 `kernel=12`. It is the most expensive preset per frame; keep trail
 counts modest on the daily automation.
+
+## Density surface frame (population density / any scalar grid)
+
+Added in 0.4.0. One call renders a complete surface frame — survey-viz
+hands over a grid and gets finished pixels back, no figure to manage:
+
+```python
+from aesthetics import render_surface
+import numpy as np
+
+rgba = render_surface(                    # (1920, 1080, 4) uint8 RGBA
+    density_grid,                         # (ny, nx) float, row 0 = top; NaN = no data
+    width_px=1080, height_px=1920,
+    cmap="teal_pink",                     # engine ramp (default); any matplotlib name or Colormap works
+    vmin=VMIN, vmax=VMAX,                 # REEL-WIDE fixed, never per-frame (flicker rule)
+    scale="log",                          # "linear" | "log"; log drops non-positives to no-data
+    smoothing=1.5,                        # Gaussian sigma in OUTPUT px; NaN-aware, gaps stay gaps
+    contours=True,                        # thin data-driven lines, suppressed over no-data
+    land_mask=landmask_bool,              # (ny, nx) bool, same shape as grid; row 0 = top
+)
+```
+
+Contract notes for the caller:
+
+- **No-data is honest, two ways.** NaN inside `land_mask` renders as
+  flat `nodata` grey (opaque). NaN outside land — or everywhere when
+  `land_mask=None` — is transparent: the near-black teal `background`
+  and the land shadow show through. Finite cells are always colormapped
+  (alpha 1), on or off land.
+- **Compositing order** is background → shadow → surface. The shadow is
+  the `land_mask` silhouette (or the finite-cell footprint when no mask
+  is passed), blurred at a fixed 3 px, offset `shadow_offset_px=(dx, dy)`
+  in image coordinates — it falls below-right of the land.
+- **Resampling** is bilinear with weights renormalized over valid
+  corners only, but the output data mask is nearest-neighbor resampled:
+  color never bleeds into a gap, and a smoothed gap stays a gap
+  (re-masked after the NaN-aware Gaussian). numpy + matplotlib only —
+  no scipy in this module.
+- **`scale="log"`** is for density-like data: values `<= 0` are treated
+  as no-data, auto contour levels are log-spaced, and `vmin` must be
+  positive. Auto contour levels are up to 7 interior levels between
+  `vmin`/`vmax`; pass `contour_levels=[...]` (finite, increasing) to
+  fix them reel-wide.
+- **All-NaN grids do not raise.** With a land mask they render grey
+  land over background + shadow; without, plain background. An empty
+  (zero-cell) grid, a wrong-shaped `land_mask`, a bad `scale`, or an
+  explicitly passed `vmax <= vmin` raise `ValueError`. A constant valid
+  field auto-expands its range instead of raising.
+- **The colormap**: `teal_pink` (deep teal → turquoise → cream →
+  orange → pink, hot cores at the top end) is registered with
+  matplotlib at import, so `cmap="teal_pink"` works in any matplotlib
+  call too. `get_colormap(name)` resolves names (or passes a Colormap
+  through, raising `ValueError` on unknown names); `list_colormaps()`
+  returns the engine's own registered names (`["teal_pink"]`).
+- **Determinism**: no RNG; identical inputs give byte-identical uint8
+  output (pinned-matplotlib caveat applies, as everywhere in the engine).
 
 ## Basemap styles
 

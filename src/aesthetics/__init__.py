@@ -4,7 +4,8 @@ Deterministic, UI-free render layers that give survey-viz output the
 mapped.earth / warming.watch look: LIC flow-field streaks, advected
 particle strands, additive glow with bloom, 3D prism extrusion, rotated
 auto-fit framing, editorial typography, collision-aware furniture
-layout, custom legends, styled basemaps, and watermark furniture.
+layout, custom legends, styled basemaps, watermark furniture, and the
+``teal_pink`` density-surface compositing primitive.
 
 Every public function is deterministic: same inputs + same seed ->
 byte-identical output, so survey-cache fingerprints stay stable across
@@ -18,6 +19,7 @@ import matplotlib
 matplotlib.use("Agg")  # headless render backend; no UI imports anywhere
 
 from aesthetics.backgrounds import BLACK, PAPER, draw_coastlines, fig_to_rgba, new_canvas
+from aesthetics.colormaps import get_colormap, list_colormaps
 from aesthetics.basemap import (
     NO_BASEMAP,
     SUBTLE_LAND,
@@ -66,6 +68,7 @@ from aesthetics.presets import (
 )
 from aesthetics.prism import prism_frame
 from aesthetics.strands import render_strands
+from aesthetics.surface import render_surface
 from aesthetics.typography import (
     draw_readout,
     draw_subtitle,
@@ -79,7 +82,7 @@ from aesthetics.watermark import (
     frame_furniture,
 )
 
-__version__ = "0.2.0"
+__version__ = "0.4.0"
 
 __all__ = [
     "__version__",
@@ -101,6 +104,11 @@ __all__ = [
     "lic_texture",
     # strands
     "render_strands",
+    # surface
+    "render_surface",
+    # colormaps
+    "get_colormap",
+    "list_colormaps",
     # glow
     "accumulate_glow",
     "glow_from_grid",

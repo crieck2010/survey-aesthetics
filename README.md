@@ -20,6 +20,8 @@ The aesthetic rendering engine for the earthwatch-suite remote-sensing reel stac
 | Backgrounds | `aesthetics.backgrounds` | pure-black void and warm paper; chrome-free exact-pixel canvases; hairline coastlines |
 | Presets | `aesthetics.presets` | `dark_flow`, `dark_glow`, `dark_strands`, `paper_prism` one-choice bundles |
 | Watermark furniture | `aesthetics.watermark` | brand mark + © line + data-source footer in consistent placement |
+| Density surface | `aesthetics.surface` | colormapped scalar field (mapped.earth density look): data-driven contours, land drop shadow, grey no-data on land |
+| Colormaps | `aesthetics.colormaps` | engine-registered ramps: `teal_pink` (deep teal → turquoise → cream → orange → pink) |
 
 Every public function is **deterministic**: same inputs + same seed → byte-identical output, so [survey-cache](https://github.com/crieck2010/survey-cache) fingerprints stay stable across every frame of a reel.
 
@@ -120,6 +122,41 @@ Interop contract for survey-viz: pass reel-wide-normalized speed in [0, 1],
 sampled at trail heads (or per-vertex). Like `vmin`/`vmax`, normalize
 reel-wide, not per-frame, or the reel will flicker.
 
+## Density surface (the mapped.earth Italy look)
+
+`render_surface` renders a scalar grid — population density, event
+counts, any density-like field — as a finished frame in one call:
+resampled, colormapped, contoured, shadowed, composited.
+
+```python
+from aesthetics import render_surface
+
+rgba = render_surface(          # (1080, 1920, 4) uint8 RGBA
+    density_grid,               # (ny, nx) float; NaN = no data
+    width_px=1080, height_px=1920,
+    cmap="teal_pink",           # the engine ramp; any matplotlib name works
+    scale="log",                # density spans orders of magnitude
+    land_mask=landmask_bool,    # NaN on land -> flat grey; off land -> background
+    smoothing=1.5,              # NaN-aware: gaps stay gaps, no bleed
+)
+```
+
+The house ramp is registered at import:
+
+```python
+from aesthetics import get_colormap, list_colormaps
+
+list_colormaps()                # ["teal_pink"] (engine's own; builtins also accepted)
+cmap = get_colormap("teal_pink")  # deep teal -> turquoise -> cream -> orange -> pink
+```
+
+Semantics worth knowing: compositing is background → land shadow →
+surface; contours are thin data-driven lines suppressed over no-data;
+an all-NaN grid renders grey land (with a mask) or plain background
+(without) rather than raising. `vmin`/`vmax` default to the data's
+finite min/max — pass reel-wide fixed values for animation. Full
+contract: `docs/API.md`.
+
 ## API overview
 
 ```python
@@ -149,6 +186,11 @@ render_strands(..., brightness=speed01)  # bivariate glow: HUE = temp, BRIGHTNES
 draw_basemap(ax, segments, style)  # style: VOID_BLACK | NO_BASEMAP | SUBTLE_LAND
 place_furniture(specs, pad=0.012)  # text_spec / box_spec builders; see docs/LAYOUT.md
 
+# Surface + colormaps
+render_surface(grid, *, width_px, height_px, cmap="teal_pink", scale="log", land_mask=...) -> (H, W, 4) uint8
+get_colormap(name) -> Colormap   # engine ramps + any matplotlib name; Colormap passthrough
+list_colormaps() -> ["teal_pink"]
+
 # Presets
 list_presets() -> ["dark_flow", "dark_glow", "dark_strands", "paper_prism"]
 get_preset(name) -> Preset
@@ -177,7 +219,7 @@ Full signatures and the survey-viz call pattern: `docs/API.md`.
 
 ```bash
 pip install -e ".[dev]"
-pytest            # 119 tests, all deterministic (no network)
+pytest            # 136 tests, all deterministic (no network)
 ```
 
 ## Changelog

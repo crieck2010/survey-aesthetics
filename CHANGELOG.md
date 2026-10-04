@@ -5,6 +5,51 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and the
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0/).
 Tags are never mutated.
 
+## [0.4.0] - 2026-10-04
+
+The density-surface primitive: the mapped.earth Italy population-density
+look as one pure function, plus the engine's first registered colormap.
+
+### Added
+- `aesthetics.colormaps` — `teal_pink`, a sequential ramp (deep teal →
+  turquoise → cream → orange → pink, hot cores at the top end) built
+  from fixed hex anchors and registered with matplotlib at import
+  (idempotent), so `matplotlib.colormaps["teal_pink"]` works anywhere.
+  `get_colormap(name)` resolves a name or passes a Colormap through
+  (raising `ValueError` on unknown names, matching the other modules);
+  `list_colormaps()` returns the engine's own registered names.
+- `aesthetics.surface.render_surface` — renders a `(ny, nx)` scalar
+  grid to an exact `(height_px, width_px, 4)` uint8 RGBA frame:
+  bilinear resampling with weights renormalized over valid corners and
+  a nearest-neighbor output mask (color never bleeds into a gap),
+  optional NaN-aware renormalized Gaussian smoothing (sigma in output
+  pixels; no-data cells stay no-data), linear or log normalization
+  (log treats non-positives as no-data, with log-spaced auto contour
+  levels), thin data-driven contour lines suppressed over no-data, and
+  a blurred land/footprint drop shadow composited background → shadow →
+  surface. NaN on land renders flat `nodata` grey; NaN off land is
+  transparent. All-NaN grids render grey land (with a mask) or plain
+  background instead of raising; bad shapes, bad `scale`, and explicit
+  `vmax <= vmin` raise `ValueError`. numpy + matplotlib only — no scipy
+  in this module. No RNG: byte-identical output for identical inputs.
+- 17 new tests (`tests/test_colormaps.py`, `tests/test_surface.py`):
+  registration + luminance shape of the ramp, output shape/dtype,
+  byte determinism, grey-on-land vs background-off-land, no bleed under
+  smoothing, log semantics, shadow offset/footprint, contour on/off and
+  suppression over no-data, all-NaN grace, and the bad-input raises.
+
+### Fixed
+- `aesthetics.__version__` had drifted to `"0.2.0"` while the package
+  shipped 0.3.0; both version strings now read `0.4.0`.
+
+### Honest limits
+- The shadow blur is a fixed house constant (3 px); only offset and
+  alpha are caller controls, per the surface contract survey-viz
+  consumes.
+- Downsampling is point-sampled bilinear, not area-averaged: very
+  coarse-to-fine ratios can alias fine structure. Pass a grid near the
+  output resolution for the cleanest frame.
+
 ## [0.3.0] - 2026-10-01
 
 Feature 1, step 1 of the mapped.earth richness program: bivariate strand
